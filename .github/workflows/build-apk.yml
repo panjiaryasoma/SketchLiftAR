@@ -1,0 +1,51 @@
+name: Build SketchLiftAR APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'SketchLiftAR-android-mvp.zip'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Decode project archive
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64
+          p = Path('SketchLiftAR-android-mvp.zip')
+          raw = p.read_bytes()
+          if raw.startswith(b'UEsDB'):
+              p.write_bytes(base64.b64decode(raw))
+          PY
+
+      - name: Extract project
+        run: unzip -q SketchLiftAR-android-mvp.zip -d build-src
+
+      - name: Build debug APK
+        working-directory: build-src/SketchLiftAR
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Stage APK
+        run: cp build-src/SketchLiftAR/app/build/outputs/apk/debug/app-debug.apk SketchLiftAR-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SketchLiftAR-debug-apk
+          path: SketchLiftAR-debug.apk
+          if-no-files-found: error
